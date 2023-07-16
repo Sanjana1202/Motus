@@ -1,112 +1,89 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
+
+const jwt = require('jsonwebtoken');
 
 const Router = express.Router();
 const saltRounds = 10;
 
 const UserModel = require('../models/user');
-const user = require('../models/user');
 
 const { generateAccessToken, generateRefreshToken } = require('../tools');
 
 Router.post('/register', async (request, response) => {
-    const {email, email_cfg, password, password_cfg, username, active} = request.body;
-
-    const hash = await bcrypt.hash(password, saltRounds);
-
-    const user = new UserModel({
-        email,
-        password: hash,
-        username,
-        active
-    });
+    const { email, password, username, active } = request.body;
 
     try {
-        
+
+        const existingUser = await UserModel.findOne({ email });
+        if (existingUser) {
+            return response.status(409).json({ error: 'Email is already registered' });
+        }
+
+        const hash = await bcrypt.hash(password, saltRounds);
+
+        const user = new UserModel({
+            email,
+            password: hash,
+            username,
+            active
+        });
+
         await user.save();
 
-        return response.status(200).json({
-            "user": user
+        return response.status(201).json({
+            message: 'User registered successfully!!',
+            user: user
         });
 
     } catch (error) {
         return response.status(500).json({
-            "error": error.message
+            error: error.message
         });
     }
-
 });
 
 Router.post('/login', async (request, response) => {
-    const {email, password} = request.body;
+    const { email, password } = request.body;
 
     try {
-        
-        let user = await UserModel.findOne({
-            email,
-            active: true
-        });
+        const user = await UserModel.findOne({ email, active: true });
 
-        if (user) {
-            let verif = await bcrypt.compare(password, user.password);
-
-            if (verif) {
-                // request.session.user = user;
-
-                const accessToken = generateAccessToken(user._id)
-                const refeshToken = generateRefreshToken(user._id)
-
-                response.cookie('refreshtoken', refeshToken, {
-                    httpOnly: true,
-                    maxAge: 30*24*60*60*1000
-                });
-
-                return response.status(200).json({
-                    "accessToken": accessToken,
-                    "user": user
-                });
-            }
+        if (!user) {
+            return response.status(401).json({
+                error: 'Invalid credentials'
+            });
         }
 
-        return response.status(500).json({
-            "error": "User not authenticated !"
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+
+        if (!isPasswordValid) {
+            return response.status(401).json({
+                error: 'Invalid credentials'
+            });
+        }
+
+        const accessToken = generateAccessToken(user._id);
+        const refreshToken = generateRefreshToken(user._id);
+
+        response.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            maxAge: 30 * 24 * 60 * 60 * 1000 
         });
-    } catch (error) {
-        return response.status(500).json({
-            "error": error.message
-        });
-    }
-
-});
-
-Router.get('/me', (request, response) => {
-    return response.status(200).json({
-        "user": request.session.user
-    });
-})
-
-Router.get('/refresh-token', async (request, response) => {
-    try {
-        const rf_token = request.cookies.refreshtoken
-
-        if (!rf_token) return response.status(503).json({ msg: "Not authenticated !" });
-
-        const decoded = jwt.verify(rf_token, `secret`)
-
-        if (!decoded) return response.status(503).json({ msg: "Not authenticated !" })
-
-        const user = await UserModel.findById(decoded.id)
-
-        if (!user) return response.status(503).json({ msg: "Not authenticated !" })
-
-        const token = generateAccessToken(user._id)
 
         return response.status(200).json({
-            token,
-            user
-        })
+            accessToken: accessToken,
+            user: {
+                _id: user._id,
+                email: user.email,
+                username: user.username
+            }
+        });
+
     } catch (error) {
-        return response.status(503).json({"msg": "Not authenticated !"});
+        return response.status(500).json({
+            error: error.message
+        });
     }
 });
 
