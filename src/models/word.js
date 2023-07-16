@@ -13,3 +13,4 @@ const wordSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('Word', wordSchema);
+
