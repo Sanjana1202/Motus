@@ -70,6 +70,11 @@ Router.post('/login', async (req, res) => {
         });
     }
 });
+Router.get('/me', (request, response) => {
+    return response.status(200).json({
+        "user": request.session.user
+    });
+})
 Router.get('/refreshToken', async (request, response) => {
     try {
         const rf_token = request.cookies.refreshtoken
