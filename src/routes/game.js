@@ -38,7 +38,7 @@ function guessWord(guess, target) {
 function setDifficulty(req) {
     let result = true;
 
-    if (req.body.difficulty === 'hard') {
+    if (req.body.difficulty === 'difficult') {
         req.session.difficulty = 3;
     } else if (req.body.difficulty === 'medium') {
         req.session.difficulty = 5;

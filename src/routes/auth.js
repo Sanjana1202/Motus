@@ -70,4 +70,30 @@ Router.post('/login', async (req, res) => {
         });
     }
 });
+Router.get('/refreshToken', async (request, response) => {
+    try {
+        const rf_token = request.cookies.refreshtoken
+
+        if (!rf_token) return response.status(503).json({ msg: " User not authenticated !" });
+
+        const decoded = jwt.verify(rf_token, `secret`)
+
+        if (!decoded) return response.status(503).json({ msg: "User not Authenticated !" })
+
+        const user = await UserModel.findById(decoded.id)
+
+        if (!user) return response.status(503).json({ msg: "User not authenticated !" })
+
+        const token = generateAccessToken(user._id)
+
+        return response.status(200).json({
+            token,
+            user
+        })
+    } catch (error) {
+        return response.status(503).json({"msg": "User not authenticated !"});
+    }
+});
+
+module.exports = Router;
 
